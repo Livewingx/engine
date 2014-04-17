@@ -1289,7 +1289,14 @@ static void SV_TellBeepOrNoBeep( qboolean beep )
 	}
 
 	if ( Cmd_Argc() < 3 ) {
-		Com_Printf ("Usage: tell <client number> <text>\n");
+		if ( beep )
+		{
+			Com_Printf ("Usage: tell <client number> <text>\n");
+		}
+		else
+		{
+			Com_Printf ("Usage: tellnobeep <client number> <text>\n");
+		}
 		return;
 	}
 
