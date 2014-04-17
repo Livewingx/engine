@@ -1647,11 +1647,11 @@ static qboolean SV_ClientCommand( client_t *cl, msg_t *msg ) {
 					//tell everyone client has been muted
 					if ( sv_floodProtectMutePublic->integer )
 					{
-                                        	SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " has been muted %i.%is for spamming!\n\"", cl->name, sv_floodProtectMuteTime->integer%1000, sv_floodProtectMuteTime->integer%100 );
+                                        	SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " has been muted %i.%is for spamming!\n\"", cl->name, sv_floodProtectMuteTime->integer/1000, sv_floodProtectMuteTime->integer/100 );
 					}
 					else
 					{
-                                        	SV_SendServerCommand( cl , "print \"" S_COLOR_WHITE " You have been muted %i.%is for spamming\n\"",sv_floodProtectMuteTime->integer%1000 , sv_floodProtectMuteTime->integer%100 );
+                                        	SV_SendServerCommand( cl , "print \"" S_COLOR_WHITE " You have been muted %i.%is for spamming\n\"",sv_floodProtectMuteTime->integer/1000 , sv_floodProtectMuteTime->integer/100 );
 					}
                                         //dont set timeout twice and accumulative. AllowedSpams+1 servers as a flag here not to set it twice
                                         cl->spamCount = (1 + sv_floodProtectAllowedSpams->integer);
