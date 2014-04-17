@@ -651,6 +651,9 @@ void SV_Init (void)
 	sv_minPing = Cvar_Get ("sv_minPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_maxPing = Cvar_Get ("sv_maxPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_floodProtect = Cvar_Get ("sv_floodProtect", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_floodProtectMuteTime = Cvar_Get ("sv_floodProtectMuteTime", "1000", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_floodProtectMutePublic = Cvar_Get ("sv_floodProtectMutePublic", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_floodProtectAllowedSpams = Cvar_Get ("sv_floodProtectAllowedSpams", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
 
 	// systeminfo
 	Cvar_Get ("sv_cheats", "1", CVAR_SYSTEMINFO | CVAR_ROM );

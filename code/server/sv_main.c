@@ -57,6 +57,9 @@ cvar_t	*sv_gametype;
 cvar_t	*sv_dorestart;
 cvar_t	*sv_pure;
 cvar_t	*sv_floodProtect;
+cvar_t	*sv_floodProtectMuteTime;		//time a spamer is being muted
+cvar_t	*sv_floodProtectMutePublic;		//mute players publicly so that others know he can not speak??
+cvar_t	*sv_floodProtectAllowedSpams;		//we may want to allow the user a little spam as we may like ASCII-Art or emoticon-spam as expression of joy
 cvar_t	*sv_lanForceRate; // dedicated 1 (LAN) server forces local client rates to 99999 (bug #491)
 #ifndef STANDALONE
 cvar_t	*sv_strictAuth;

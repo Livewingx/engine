@@ -165,6 +165,7 @@ typedef struct client_s {
 
 	int				deltaMessage;		// frame last client usercmd message
 	int				nextReliableTime;	// svs.time when another reliable command will be allowed
+	int                             spamCount;              // counts uber fast usercmd messages
 	int				lastPacketTime;		// svs.time when packet was last received
 	int				lastConnectTime;	// svs.time when connection started
 	int				lastSnapshotTime;	// svs.time of last sent snapshot
@@ -289,6 +290,9 @@ extern	cvar_t	*sv_gametype;
 extern	cvar_t	*sv_dorestart;
 extern	cvar_t	*sv_pure;
 extern	cvar_t	*sv_floodProtect;
+extern	cvar_t	*sv_floodProtectMuteTime;
+extern	cvar_t	*sv_floodProtectMutePublic;
+extern	cvar_t	*sv_floodProtectAllowedSpams;
 extern	cvar_t	*sv_lanForceRate;
 #ifndef STANDALONE
 extern	cvar_t	*sv_strictAuth;

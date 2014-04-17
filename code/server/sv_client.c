@@ -582,6 +582,10 @@ gotnewcl:
 	newcl->lastPacketTime = svs.time;
 	newcl->lastConnectTime = svs.time;
 	
+        //init time for spam protection
+        newcl->nextReliableTime = svs.time;
+        newcl->spamCount = 0;
+	
 	// when we receive the first packet from the client, we will
 	// notice that it is from a different serverid and that the
 	// gamestate message was not just sent, forcing a retransmit
@@ -1598,6 +1602,8 @@ static qboolean SV_ClientCommand( client_t *cl, msg_t *msg ) {
 	const char	*s;
 	qboolean clientOk = qtrue;
 
+	int normalCmdTime = 1000;
+
 	seq = MSG_ReadLong( msg );
 	s = MSG_ReadString( msg );
 
@@ -1616,26 +1622,57 @@ static qboolean SV_ClientCommand( client_t *cl, msg_t *msg ) {
 		return qfalse;
 	}
 
-	// malicious users may try using too many string commands
-	// to lag other players.  If we decide that we want to stall
-	// the command, we will stop processing the rest of the packet,
-	// including the usercmd.  This causes flooders to lag themselves
-	// but not other people
-	// We don't do this when the client hasn't been active yet since it's
-	// normal to spam a lot of commands when downloading
-	if ( !com_cl_running->integer && 
-		cl->state >= CS_ACTIVE &&
-		sv_floodProtect->integer && 
-		svs.time < cl->nextReliableTime ) {
-		// ignore any other text messages from this client but let them keep playing
-		// TTimo - moved the ignored verbose to the actual processing in SV_ExecuteClientCommand, only printing if the core doesn't intercept
-		clientOk = qfalse;
-	} 
-
-	// don't allow another command for one second
-	cl->nextReliableTime = svs.time + 1000;
-
-	SV_ExecuteClientCommand( cl, s, clientOk );
+	if ( !com_cl_running->integer &&
+                cl->state >= CS_ACTIVE &&
+                sv_floodProtect->integer )
+        {
+                /*input too fast? block cmds for some time! */
+                if ( svs.time < cl->nextReliableTime )
+                {
+                        //register this as spam event
+                        if ( cl->spamCount < sv_floodProtectAllowedSpams->integer )
+                        {
+                                cl->spamCount++;
+                                cl->nextReliableTime = svs.time + normalCmdTime;
+                        }
+                        else //sorry too much spamming D:
+                        {
+                                // ignore any other text messages from this client but let them keep playing
+                                // TTimo - moved the ignored verbose to the actual processing in SV_ExecuteClientCommand, only printing if the core doesn't intercept
+                                clientOk = qfalse;
+                                //only set timeout once and do not repeat after more input
+                                if ( cl->spamCount == sv_floodProtectAllowedSpams->integer )
+                                {
+                                        cl->nextReliableTime = svs.time + sv_floodProtectMuteTime->integer; //Player can not spam for MuteTime!
+					//tell everyone client has been muted
+					if ( sv_floodProtectMutePublic->integer )
+					{
+                                        	SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " has been muted %i.%is for spamming!\n\"", cl->name, sv_floodProtectMuteTime->integer%1000, sv_floodProtectMuteTime->integer%100 );
+					}
+					else
+					{
+                                        	SV_SendServerCommand( cl , "print \"" S_COLOR_WHITE " You have been muted %i.%is for spamming\n\"",sv_floodProtectMuteTime->integer%1000 , sv_floodProtectMuteTime->integer%100 );
+					}
+                                        //dont set timeout twice and accumulative. AllowedSpams+1 servers as a flag here not to set it twice
+                                        cl->spamCount = (1 + sv_floodProtectAllowedSpams->integer);
+                                }
+                        }
+                }
+                else
+                {
+                        //reset spam threashold after cool off
+                        if ( cl->spamCount > 0 )
+                        {
+                                cl->spamCount = 0;
+                        }
+                        cl->nextReliableTime = svs.time + normalCmdTime;
+                }
+        }
+        // only allow client to do a cmd when not having spammed
+        if ( clientOk )
+        {
+                SV_ExecuteClientCommand( cl, s, clientOk );
+        }
 
 	cl->lastClientCommand = seq;
 	Com_sprintf(cl->lastClientCommandString, sizeof(cl->lastClientCommandString), "%s", s);
