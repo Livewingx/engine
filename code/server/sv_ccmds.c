@@ -1221,12 +1221,8 @@ static void SV_Status_f( void ) {
 	Com_Printf ("\n");
 }
 
-/*
-==================
-SV_ConSay_f
-==================
-*/
-static void SV_ConSay_f(void) {
+static void SV_ConSayBeepOrNoBeep( qboolean beep )
+{
 	char	*p;
 	char	text[1024];
 
@@ -1249,16 +1245,39 @@ static void SV_ConSay_f(void) {
 	}
 
 	strcat(text, p);
-
-	SV_SendServerCommand(NULL, "chat \"%s\"", text);
+	if ( beep )
+	{
+		SV_SendServerCommand(NULL, "chat \"%s\"", text);
+	}
+	else
+	{
+		SV_SendServerCommand(NULL, "print \"%s\"", text);
+	}
 }
 
 /*
 ==================
-SV_ConTell_f
+SV_ConSay_f
 ==================
 */
-static void SV_ConTell_f(void) {
+static void SV_ConSay_f(void) 
+{
+	SV_ConSayBeepOrNoBeep( qtrue );
+}
+
+
+/*
+==================
+SV_ConSayNoBeep_f
+==================
+*/
+static void SV_ConSayNoBeep_f(void)
+{
+	SV_ConSayBeepOrNoBeep( qfalse );
+}
+
+static void SV_TellBeepOrNoBeep( qboolean beep )
+{
 	char	*p;
 	char	text[1024];
 	client_t	*cl;
@@ -1289,9 +1308,36 @@ static void SV_ConTell_f(void) {
 
 	strcat(text, p);
 
-	SV_SendServerCommand(cl, "chat \"%s\"", text);
+	if ( beep )
+	{
+		SV_SendServerCommand(cl, "chat \"%s\"", text);
+	}
+	else
+	{
+		SV_SendServerCommand(cl, "print \"%s\"", text);
+
+	}
 }
 
+/*
+==================
+SV_ConTell_f
+==================
+*/
+static void SV_ConTell_f(void) 
+{
+	SV_TellBeepOrNoBeep( qtrue );
+}
+
+/*
+==================
+SV_ConTellNoBeep_f
+==================
+*/
+static void SV_ConTellNoBeep_f(void) 
+{
+	SV_TellBeepOrNoBeep( qfalse );
+}
 
 /*
 ==================
@@ -1442,7 +1488,9 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	if( com_dedicated->integer ) {
 		Cmd_AddCommand ("say", SV_ConSay_f);
+		Cmd_AddCommand ("saynobeep", SV_ConSayNoBeep_f); //like say but no beep
 		Cmd_AddCommand ("tell", SV_ConTell_f);
+		Cmd_AddCommand ("tellnobeep", SV_ConTellNoBeep_f);//like tell but no beep
 	}
 	
 	Cmd_AddCommand("rehashbans", SV_RehashBans_f);
