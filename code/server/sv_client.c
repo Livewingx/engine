@@ -1643,401 +1643,401 @@ static qboolean SV_ClientCommand( client_t *cl, msg_t *msg ) {
                                 //only set timeout once and do not repeat after more input
                                 if ( cl->spamCount == sv_floodProtectAllowedSpams->integer )
                                 {
-                                        cl->nextReliableTime = svs.time + sv_floodProtectMuteTime->integer; //Player can not spam for MuteTime!
-					//tell everyone client has been muted
-					if ( sv_floodProtectMutePublic->integer )
-					{
-                                        	SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " has been muted %i.%is for spamming!\n\"", cl->name, sv_floodProtectMuteTime->integer/1000, sv_floodProtectMuteTime->integer/100 );
+						cl->nextReliableTime = svs.time + sv_floodProtectMuteTime->integer; //Player can not spam for MuteTime!
+						//tell everyone client has been muted
+						if ( sv_floodProtectMutePublic->integer )
+						{
+							SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " has been muted %i.%is for spamming!\n\"", cl->name, sv_floodProtectMuteTime->integer/1000, sv_floodProtectMuteTime->integer%1000 );
+						}
+						else
+						{
+							SV_SendServerCommand( cl , "print \"" S_COLOR_WHITE " You have been muted %i.%is for spamming\n\"",sv_floodProtectMuteTime->integer/1000 , sv_floodProtectMuteTime->integer%1000 );
+						}
+						//dont set timeout twice and accumulative. AllowedSpams+1 servers as a flag here not to set it twice
+						cl->spamCount = (1 + sv_floodProtectAllowedSpams->integer);
 					}
-					else
-					{
-                                        	SV_SendServerCommand( cl , "print \"" S_COLOR_WHITE " You have been muted %i.%is for spamming\n\"",sv_floodProtectMuteTime->integer/1000 , sv_floodProtectMuteTime->integer/100 );
-					}
-                                        //dont set timeout twice and accumulative. AllowedSpams+1 servers as a flag here not to set it twice
-                                        cl->spamCount = (1 + sv_floodProtectAllowedSpams->integer);
-                                }
-                        }
-                }
-                else
-                {
-                        //reset spam threashold after cool off
-                        if ( cl->spamCount > 0 )
-                        {
-                                cl->spamCount = 0;
-                        }
-                        cl->nextReliableTime = svs.time + normalCmdTime;
-                }
-        }
-        // only allow client to do a cmd when not having spammed
-        if ( clientOk )
-        {
-                SV_ExecuteClientCommand( cl, s, clientOk );
-        }
-
-	cl->lastClientCommand = seq;
-	Com_sprintf(cl->lastClientCommandString, sizeof(cl->lastClientCommandString), "%s", s);
-
-	return qtrue;		// continue procesing
-}
-
-
-//==================================================================================
-
-
-/*
-==================
-SV_ClientThink
-
-Also called by bot code
-==================
-*/
-void SV_ClientThink (client_t *cl, usercmd_t *cmd) {
-	cl->lastUsercmd = *cmd;
-
-	if ( cl->state != CS_ACTIVE ) {
-		return;		// may have been kicked during the last usercmd
-	}
-
-	VM_Call( gvm, GAME_CLIENT_THINK, cl - svs.clients );
-}
-
-/*
-==================
-SV_UserMove
-
-The message usually contains all the movement commands 
-that were in the last three packets, so that the information
-in dropped packets can be recovered.
-
-On very fast clients, there may be multiple usercmd packed into
-each of the backup packets.
-==================
-*/
-static void SV_UserMove( client_t *cl, msg_t *msg, qboolean delta ) {
-	int			i, key;
-	int			cmdCount;
-	usercmd_t	nullcmd;
-	usercmd_t	cmds[MAX_PACKET_USERCMDS];
-	usercmd_t	*cmd, *oldcmd;
-
-	if ( delta ) {
-		cl->deltaMessage = cl->messageAcknowledge;
-	} else {
-		cl->deltaMessage = -1;
-	}
-
-	cmdCount = MSG_ReadByte( msg );
-
-	if ( cmdCount < 1 ) {
-		Com_Printf( "cmdCount < 1\n" );
-		return;
-	}
-
-	if ( cmdCount > MAX_PACKET_USERCMDS ) {
-		Com_Printf( "cmdCount > MAX_PACKET_USERCMDS\n" );
-		return;
-	}
-
-	// use the checksum feed in the key
-	key = sv.checksumFeed;
-	// also use the message acknowledge
-	key ^= cl->messageAcknowledge;
-	// also use the last acknowledged server command in the key
-	key ^= MSG_HashKey(cl->reliableCommands[ cl->reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ], 32);
-
-	Com_Memset( &nullcmd, 0, sizeof(nullcmd) );
-	oldcmd = &nullcmd;
-	for ( i = 0 ; i < cmdCount ; i++ ) {
-		cmd = &cmds[i];
-		MSG_ReadDeltaUsercmdKey( msg, key, oldcmd, cmd );
-		oldcmd = cmd;
-	}
-
-	// save time for ping calculation
-	cl->frames[ cl->messageAcknowledge & PACKET_MASK ].messageAcked = svs.time;
-
-	// TTimo
-	// catch the no-cp-yet situation before SV_ClientEnterWorld
-	// if CS_ACTIVE, then it's time to trigger a new gamestate emission
-	// if not, then we are getting remaining parasite usermove commands, which we should ignore
-	if (sv_pure->integer != 0 && cl->pureAuthentic == 0 && !cl->gotCP) {
-		if (cl->state == CS_ACTIVE)
+				}
+			}
+			else
+			{
+				//reset spam threashold after cool off
+				if ( cl->spamCount > 0 )
+				{
+					cl->spamCount = 0;
+				}
+				cl->nextReliableTime = svs.time + normalCmdTime;
+			}
+		}
+		// only allow client to do a cmd when not having spammed
+		if ( clientOk )
 		{
-			// we didn't get a cp yet, don't assume anything and just send the gamestate all over again
-			Com_DPrintf( "%s: didn't get cp command, resending gamestate\n", cl->name);
-			SV_SendClientGameState( cl );
-		}
-		return;
-	}			
-	
-	// if this is the first usercmd we have received
-	// this gamestate, put the client into the world
-	if ( cl->state == CS_PRIMED ) {
-		SV_ClientEnterWorld( cl, &cmds[0] );
-		// the moves can be processed normaly
-	}
-	
-	// a bad cp command was sent, drop the client
-	if (sv_pure->integer != 0 && cl->pureAuthentic == 0) {		
-		SV_DropClient( cl, "Cannot validate pure client!");
-		return;
-	}
-
-	if ( cl->state != CS_ACTIVE ) {
-		cl->deltaMessage = -1;
-		return;
-	}
-
-	// usually, the first couple commands will be duplicates
-	// of ones we have previously received, but the servertimes
-	// in the commands will cause them to be immediately discarded
-	for ( i =  0 ; i < cmdCount ; i++ ) {
-		// if this is a cmd from before a map_restart ignore it
-		if ( cmds[i].serverTime > cmds[cmdCount-1].serverTime ) {
-			continue;
-		}
-		// extremely lagged or cmd from before a map_restart
-		//if ( cmds[i].serverTime > svs.time + 3000 ) {
-		//	continue;
-		//}
-		// don't execute if this is an old cmd which is already executed
-		// these old cmds are included when cl_packetdup > 0
-		if ( cmds[i].serverTime <= cl->lastUsercmd.serverTime ) {
-			continue;
-		}
-		SV_ClientThink (cl, &cmds[ i ]);
-	}
-}
-
-
-#ifdef USE_VOIP
-/*
-==================
-SV_ShouldIgnoreVoipSender
-
-Blocking of voip packets based on source client
-==================
-*/
-
-static qboolean SV_ShouldIgnoreVoipSender(const client_t *cl)
-{
-	if (!sv_voip->integer)
-		return qtrue;  // VoIP disabled on this server.
-	else if (!cl->hasVoip)  // client doesn't have VoIP support?!
-		return qtrue;
-    
-	// !!! FIXME: implement player blacklist.
-
-	return qfalse;  // don't ignore.
-}
-
-static
-void SV_UserVoip(client_t *cl, msg_t *msg)
-{
-	int sender, generation, sequence, frames, packetsize;
-	uint8_t recips[(MAX_CLIENTS + 7) / 8];
-	int flags;
-	byte encoded[sizeof(cl->voipPacket[0]->data)];
-	client_t *client = NULL;
-	voipServerPacket_t *packet = NULL;
-	int i;
-
-	sender = cl - svs.clients;
-	generation = MSG_ReadByte(msg);
-	sequence = MSG_ReadLong(msg);
-	frames = MSG_ReadByte(msg);
-	MSG_ReadData(msg, recips, sizeof(recips));
-	flags = MSG_ReadByte(msg);
-	packetsize = MSG_ReadShort(msg);
-
-	if (msg->readcount > msg->cursize)
-		return;   // short/invalid packet, bail.
-
-	if (packetsize > sizeof (encoded)) {  // overlarge packet?
-		int bytesleft = packetsize;
-		while (bytesleft) {
-			int br = bytesleft;
-			if (br > sizeof (encoded))
-				br = sizeof (encoded);
-			MSG_ReadData(msg, encoded, br);
-			bytesleft -= br;
-		}
-		return;   // overlarge packet, bail.
-	}
-
-	MSG_ReadData(msg, encoded, packetsize);
-
-	if (SV_ShouldIgnoreVoipSender(cl))
-		return;   // Blacklisted, disabled, etc.
-
-	// !!! FIXME: see if we read past end of msg...
-
-	// !!! FIXME: reject if not speex narrowband codec.
-	// !!! FIXME: decide if this is bogus data?
-
-	// decide who needs this VoIP packet sent to them...
-	for (i = 0, client = svs.clients; i < sv_maxclients->integer ; i++, client++) {
-		if (client->state != CS_ACTIVE)
-			continue;  // not in the game yet, don't send to this guy.
-		else if (i == sender)
-			continue;  // don't send voice packet back to original author.
-		else if (!client->hasVoip)
-			continue;  // no VoIP support, or unsupported protocol
-		else if (client->muteAllVoip)
-			continue;  // client is ignoring everyone.
-		else if (client->ignoreVoipFromClient[sender])
-			continue;  // client is ignoring this talker.
-		else if (*cl->downloadName)   // !!! FIXME: possible to DoS?
-			continue;  // no VoIP allowed if downloading, to save bandwidth.
-
-		if(Com_IsVoipTarget(recips, sizeof(recips), i))
-			flags |= VOIP_DIRECT;
-		else
-			flags &= ~VOIP_DIRECT;
-
-		if (!(flags & (VOIP_SPATIAL | VOIP_DIRECT)))
-			continue;  // not addressed to this player.
-
-		// Transmit this packet to the client.
-		if (client->queuedVoipPackets >= ARRAY_LEN(client->voipPacket)) {
-			Com_Printf("Too many VoIP packets queued for client #%d\n", i);
-			continue;  // no room for another packet right now.
+			SV_ExecuteClientCommand( cl, s, clientOk );
 		}
 
-		packet = Z_Malloc(sizeof(*packet));
-		packet->sender = sender;
-		packet->frames = frames;
-		packet->len = packetsize;
-		packet->generation = generation;
-		packet->sequence = sequence;
-		packet->flags = flags;
-		memcpy(packet->data, encoded, packetsize);
+		cl->lastClientCommand = seq;
+		Com_sprintf(cl->lastClientCommandString, sizeof(cl->lastClientCommandString), "%s", s);
 
-		client->voipPacket[(client->queuedVoipIndex + client->queuedVoipPackets) % ARRAY_LEN(client->voipPacket)] = packet;
-		client->queuedVoipPackets++;
-	}
-}
-#endif
-
-
-
-/*
-===========================================================================
-
-USER CMD EXECUTION
-
-===========================================================================
-*/
-
-/*
-===================
-SV_ExecuteClientMessage
-
-Parse a client packet
-===================
-*/
-void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
-	int			c;
-	int			serverId;
-
-	MSG_Bitstream(msg);
-
-	serverId = MSG_ReadLong( msg );
-	cl->messageAcknowledge = MSG_ReadLong( msg );
-
-	if (cl->messageAcknowledge < 0) {
-		// usually only hackers create messages like this
-		// it is more annoying for them to let them hanging
-#ifndef NDEBUG
-		SV_DropClient( cl, "DEBUG: illegible client message" );
-#endif
-		return;
+		return qtrue;		// continue procesing
 	}
 
-	cl->reliableAcknowledge = MSG_ReadLong( msg );
 
-	// NOTE: when the client message is fux0red the acknowledgement numbers
-	// can be out of range, this could cause the server to send thousands of server
-	// commands which the server thinks are not yet acknowledged in SV_UpdateServerCommandsToClient
-	if (cl->reliableAcknowledge < cl->reliableSequence - MAX_RELIABLE_COMMANDS) {
-		// usually only hackers create messages like this
-		// it is more annoying for them to let them hanging
-#ifndef NDEBUG
-		SV_DropClient( cl, "DEBUG: illegible client message" );
-#endif
-		cl->reliableAcknowledge = cl->reliableSequence;
-		return;
+	//==================================================================================
+
+
+	/*
+	==================
+	SV_ClientThink
+
+	Also called by bot code
+	==================
+	*/
+	void SV_ClientThink (client_t *cl, usercmd_t *cmd) {
+		cl->lastUsercmd = *cmd;
+
+		if ( cl->state != CS_ACTIVE ) {
+			return;		// may have been kicked during the last usercmd
+		}
+
+		VM_Call( gvm, GAME_CLIENT_THINK, cl - svs.clients );
 	}
-	// if this is a usercmd from a previous gamestate,
-	// ignore it or retransmit the current gamestate
-	// 
-	// if the client was downloading, let it stay at whatever serverId and
-	// gamestate it was at.  This allows it to keep downloading even when
-	// the gamestate changes.  After the download is finished, we'll
-	// notice and send it a new game state
-	//
-	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=536
-	// don't drop as long as previous command was a nextdl, after a dl is done, downloadName is set back to ""
-	// but we still need to read the next message to move to next download or send gamestate
-	// I don't like this hack though, it must have been working fine at some point, suspecting the fix is somewhere else
-	if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, "nextdl") ) {
-		if ( serverId >= sv.restartedServerId && serverId < sv.serverId ) { // TTimo - use a comparison here to catch multiple map_restart
-			// they just haven't caught the map_restart yet
-			Com_DPrintf("%s : ignoring pre map_restart / outdated client message\n", cl->name);
+
+	/*
+	==================
+	SV_UserMove
+
+	The message usually contains all the movement commands 
+	that were in the last three packets, so that the information
+	in dropped packets can be recovered.
+
+	On very fast clients, there may be multiple usercmd packed into
+	each of the backup packets.
+	==================
+	*/
+	static void SV_UserMove( client_t *cl, msg_t *msg, qboolean delta ) {
+		int			i, key;
+		int			cmdCount;
+		usercmd_t	nullcmd;
+		usercmd_t	cmds[MAX_PACKET_USERCMDS];
+		usercmd_t	*cmd, *oldcmd;
+
+		if ( delta ) {
+			cl->deltaMessage = cl->messageAcknowledge;
+		} else {
+			cl->deltaMessage = -1;
+		}
+
+		cmdCount = MSG_ReadByte( msg );
+
+		if ( cmdCount < 1 ) {
+			Com_Printf( "cmdCount < 1\n" );
 			return;
 		}
-		// if we can tell that the client has dropped the last
-		// gamestate we sent them, resend it
-		if ( cl->messageAcknowledge > cl->gamestateMessageNum ) {
-			Com_DPrintf( "%s : dropped gamestate, resending\n", cl->name );
-			SV_SendClientGameState( cl );
+
+		if ( cmdCount > MAX_PACKET_USERCMDS ) {
+			Com_Printf( "cmdCount > MAX_PACKET_USERCMDS\n" );
+			return;
 		}
-		return;
+
+		// use the checksum feed in the key
+		key = sv.checksumFeed;
+		// also use the message acknowledge
+		key ^= cl->messageAcknowledge;
+		// also use the last acknowledged server command in the key
+		key ^= MSG_HashKey(cl->reliableCommands[ cl->reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ], 32);
+
+		Com_Memset( &nullcmd, 0, sizeof(nullcmd) );
+		oldcmd = &nullcmd;
+		for ( i = 0 ; i < cmdCount ; i++ ) {
+			cmd = &cmds[i];
+			MSG_ReadDeltaUsercmdKey( msg, key, oldcmd, cmd );
+			oldcmd = cmd;
+		}
+
+		// save time for ping calculation
+		cl->frames[ cl->messageAcknowledge & PACKET_MASK ].messageAcked = svs.time;
+
+		// TTimo
+		// catch the no-cp-yet situation before SV_ClientEnterWorld
+		// if CS_ACTIVE, then it's time to trigger a new gamestate emission
+		// if not, then we are getting remaining parasite usermove commands, which we should ignore
+		if (sv_pure->integer != 0 && cl->pureAuthentic == 0 && !cl->gotCP) {
+			if (cl->state == CS_ACTIVE)
+			{
+				// we didn't get a cp yet, don't assume anything and just send the gamestate all over again
+				Com_DPrintf( "%s: didn't get cp command, resending gamestate\n", cl->name);
+				SV_SendClientGameState( cl );
+			}
+			return;
+		}			
+		
+		// if this is the first usercmd we have received
+		// this gamestate, put the client into the world
+		if ( cl->state == CS_PRIMED ) {
+			SV_ClientEnterWorld( cl, &cmds[0] );
+			// the moves can be processed normaly
+		}
+		
+		// a bad cp command was sent, drop the client
+		if (sv_pure->integer != 0 && cl->pureAuthentic == 0) {		
+			SV_DropClient( cl, "Cannot validate pure client!");
+			return;
+		}
+
+		if ( cl->state != CS_ACTIVE ) {
+			cl->deltaMessage = -1;
+			return;
+		}
+
+		// usually, the first couple commands will be duplicates
+		// of ones we have previously received, but the servertimes
+		// in the commands will cause them to be immediately discarded
+		for ( i =  0 ; i < cmdCount ; i++ ) {
+			// if this is a cmd from before a map_restart ignore it
+			if ( cmds[i].serverTime > cmds[cmdCount-1].serverTime ) {
+				continue;
+			}
+			// extremely lagged or cmd from before a map_restart
+			//if ( cmds[i].serverTime > svs.time + 3000 ) {
+			//	continue;
+			//}
+			// don't execute if this is an old cmd which is already executed
+			// these old cmds are included when cl_packetdup > 0
+			if ( cmds[i].serverTime <= cl->lastUsercmd.serverTime ) {
+				continue;
+			}
+			SV_ClientThink (cl, &cmds[ i ]);
+		}
 	}
 
-	// this client has acknowledged the new gamestate so it's
-	// safe to start sending it the real time again
-	if( cl->oldServerTime && serverId == sv.serverId ){
-		Com_DPrintf( "%s acknowledged gamestate\n", cl->name );
-		cl->oldServerTime = 0;
+
+	#ifdef USE_VOIP
+	/*
+	==================
+	SV_ShouldIgnoreVoipSender
+
+	Blocking of voip packets based on source client
+	==================
+	*/
+
+	static qboolean SV_ShouldIgnoreVoipSender(const client_t *cl)
+	{
+		if (!sv_voip->integer)
+			return qtrue;  // VoIP disabled on this server.
+		else if (!cl->hasVoip)  // client doesn't have VoIP support?!
+			return qtrue;
+	    
+		// !!! FIXME: implement player blacklist.
+
+		return qfalse;  // don't ignore.
 	}
 
-	// read optional clientCommand strings
-	do {
-		c = MSG_ReadByte( msg );
+	static
+	void SV_UserVoip(client_t *cl, msg_t *msg)
+	{
+		int sender, generation, sequence, frames, packetsize;
+		uint8_t recips[(MAX_CLIENTS + 7) / 8];
+		int flags;
+		byte encoded[sizeof(cl->voipPacket[0]->data)];
+		client_t *client = NULL;
+		voipServerPacket_t *packet = NULL;
+		int i;
 
-		if ( c == clc_EOF ) {
-			break;
+		sender = cl - svs.clients;
+		generation = MSG_ReadByte(msg);
+		sequence = MSG_ReadLong(msg);
+		frames = MSG_ReadByte(msg);
+		MSG_ReadData(msg, recips, sizeof(recips));
+		flags = MSG_ReadByte(msg);
+		packetsize = MSG_ReadShort(msg);
+
+		if (msg->readcount > msg->cursize)
+			return;   // short/invalid packet, bail.
+
+		if (packetsize > sizeof (encoded)) {  // overlarge packet?
+			int bytesleft = packetsize;
+			while (bytesleft) {
+				int br = bytesleft;
+				if (br > sizeof (encoded))
+					br = sizeof (encoded);
+				MSG_ReadData(msg, encoded, br);
+				bytesleft -= br;
+			}
+			return;   // overlarge packet, bail.
 		}
 
-		if ( c != clc_clientCommand ) {
-			break;
-		}
-		if ( !SV_ClientCommand( cl, msg ) ) {
-			return;	// we couldn't execute it because of the flood protection
-		}
-		if (cl->state == CS_ZOMBIE) {
-			return;	// disconnect command
-		}
-	} while ( 1 );
+		MSG_ReadData(msg, encoded, packetsize);
 
-	// read optional voip data
-	if ( c == clc_voip ) {
-#ifdef USE_VOIP
-		SV_UserVoip( cl, msg );
-		c = MSG_ReadByte( msg );
-#endif
+		if (SV_ShouldIgnoreVoipSender(cl))
+			return;   // Blacklisted, disabled, etc.
+
+		// !!! FIXME: see if we read past end of msg...
+
+		// !!! FIXME: reject if not speex narrowband codec.
+		// !!! FIXME: decide if this is bogus data?
+
+		// decide who needs this VoIP packet sent to them...
+		for (i = 0, client = svs.clients; i < sv_maxclients->integer ; i++, client++) {
+			if (client->state != CS_ACTIVE)
+				continue;  // not in the game yet, don't send to this guy.
+			else if (i == sender)
+				continue;  // don't send voice packet back to original author.
+			else if (!client->hasVoip)
+				continue;  // no VoIP support, or unsupported protocol
+			else if (client->muteAllVoip)
+				continue;  // client is ignoring everyone.
+			else if (client->ignoreVoipFromClient[sender])
+				continue;  // client is ignoring this talker.
+			else if (*cl->downloadName)   // !!! FIXME: possible to DoS?
+				continue;  // no VoIP allowed if downloading, to save bandwidth.
+
+			if(Com_IsVoipTarget(recips, sizeof(recips), i))
+				flags |= VOIP_DIRECT;
+			else
+				flags &= ~VOIP_DIRECT;
+
+			if (!(flags & (VOIP_SPATIAL | VOIP_DIRECT)))
+				continue;  // not addressed to this player.
+
+			// Transmit this packet to the client.
+			if (client->queuedVoipPackets >= ARRAY_LEN(client->voipPacket)) {
+				Com_Printf("Too many VoIP packets queued for client #%d\n", i);
+				continue;  // no room for another packet right now.
+			}
+
+			packet = Z_Malloc(sizeof(*packet));
+			packet->sender = sender;
+			packet->frames = frames;
+			packet->len = packetsize;
+			packet->generation = generation;
+			packet->sequence = sequence;
+			packet->flags = flags;
+			memcpy(packet->data, encoded, packetsize);
+
+			client->voipPacket[(client->queuedVoipIndex + client->queuedVoipPackets) % ARRAY_LEN(client->voipPacket)] = packet;
+			client->queuedVoipPackets++;
+		}
 	}
+	#endif
 
-	// read the usercmd_t
-	if ( c == clc_move ) {
-		SV_UserMove( cl, msg, qtrue );
-	} else if ( c == clc_moveNoDelta ) {
-		SV_UserMove( cl, msg, qfalse );
-	} else if ( c != clc_EOF ) {
-		Com_Printf( "WARNING: bad command byte for client %i\n", (int) (cl - svs.clients) );
-	}
-//	if ( msg->readcount != msg->cursize ) {
-//		Com_Printf( "WARNING: Junk at end of packet for client %i\n", cl - svs.clients );
-//	}
+
+
+	/*
+	===========================================================================
+
+	USER CMD EXECUTION
+
+	===========================================================================
+	*/
+
+	/*
+	===================
+	SV_ExecuteClientMessage
+
+	Parse a client packet
+	===================
+	*/
+	void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
+		int			c;
+		int			serverId;
+
+		MSG_Bitstream(msg);
+
+		serverId = MSG_ReadLong( msg );
+		cl->messageAcknowledge = MSG_ReadLong( msg );
+
+		if (cl->messageAcknowledge < 0) {
+			// usually only hackers create messages like this
+			// it is more annoying for them to let them hanging
+	#ifndef NDEBUG
+			SV_DropClient( cl, "DEBUG: illegible client message" );
+	#endif
+			return;
+		}
+
+		cl->reliableAcknowledge = MSG_ReadLong( msg );
+
+		// NOTE: when the client message is fux0red the acknowledgement numbers
+		// can be out of range, this could cause the server to send thousands of server
+		// commands which the server thinks are not yet acknowledged in SV_UpdateServerCommandsToClient
+		if (cl->reliableAcknowledge < cl->reliableSequence - MAX_RELIABLE_COMMANDS) {
+			// usually only hackers create messages like this
+			// it is more annoying for them to let them hanging
+	#ifndef NDEBUG
+			SV_DropClient( cl, "DEBUG: illegible client message" );
+	#endif
+			cl->reliableAcknowledge = cl->reliableSequence;
+			return;
+		}
+		// if this is a usercmd from a previous gamestate,
+		// ignore it or retransmit the current gamestate
+		// 
+		// if the client was downloading, let it stay at whatever serverId and
+		// gamestate it was at.  This allows it to keep downloading even when
+		// the gamestate changes.  After the download is finished, we'll
+		// notice and send it a new game state
+		//
+		// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=536
+		// don't drop as long as previous command was a nextdl, after a dl is done, downloadName is set back to ""
+		// but we still need to read the next message to move to next download or send gamestate
+		// I don't like this hack though, it must have been working fine at some point, suspecting the fix is somewhere else
+		if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, "nextdl") ) {
+			if ( serverId >= sv.restartedServerId && serverId < sv.serverId ) { // TTimo - use a comparison here to catch multiple map_restart
+				// they just haven't caught the map_restart yet
+				Com_DPrintf("%s : ignoring pre map_restart / outdated client message\n", cl->name);
+				return;
+			}
+			// if we can tell that the client has dropped the last
+			// gamestate we sent them, resend it
+			if ( cl->messageAcknowledge > cl->gamestateMessageNum ) {
+				Com_DPrintf( "%s : dropped gamestate, resending\n", cl->name );
+				SV_SendClientGameState( cl );
+			}
+			return;
+		}
+
+		// this client has acknowledged the new gamestate so it's
+		// safe to start sending it the real time again
+		if( cl->oldServerTime && serverId == sv.serverId ){
+			Com_DPrintf( "%s acknowledged gamestate\n", cl->name );
+			cl->oldServerTime = 0;
+		}
+
+		// read optional clientCommand strings
+		do {
+			c = MSG_ReadByte( msg );
+
+			if ( c == clc_EOF ) {
+				break;
+			}
+
+			if ( c != clc_clientCommand ) {
+				break;
+			}
+			if ( !SV_ClientCommand( cl, msg ) ) {
+				return;	// we couldn't execute it because of the flood protection
+			}
+			if (cl->state == CS_ZOMBIE) {
+				return;	// disconnect command
+			}
+		} while ( 1 );
+
+		// read optional voip data
+		if ( c == clc_voip ) {
+	#ifdef USE_VOIP
+			SV_UserVoip( cl, msg );
+			c = MSG_ReadByte( msg );
+	#endif
+		}
+
+		// read the usercmd_t
+		if ( c == clc_move ) {
+			SV_UserMove( cl, msg, qtrue );
+		} else if ( c == clc_moveNoDelta ) {
+			SV_UserMove( cl, msg, qfalse );
+		} else if ( c != clc_EOF ) {
+			Com_Printf( "WARNING: bad command byte for client %i\n", (int) (cl - svs.clients) );
+		}
+	//	if ( msg->readcount != msg->cursize ) {
+	//		Com_Printf( "WARNING: Junk at end of packet for client %i\n", cl - svs.clients );
+	//	}
 }
