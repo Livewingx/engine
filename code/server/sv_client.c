@@ -1668,11 +1668,10 @@ static qboolean SV_ClientCommand( client_t *cl, msg_t *msg ) {
 				cl->nextReliableTime = svs.time + normalCmdTime;
 			}
 		}
-		// only allow client to do a cmd when not having spammed
-		if ( clientOk )
-		{
-			SV_ExecuteClientCommand( cl, s, clientOk );
-		}
+		/*Server commands are still being executed, but one may want to fix this!
+		* clientOK is just the flag for not executing text messages
+		*/
+		SV_ExecuteClientCommand( cl, s, clientOk );
 
 		cl->lastClientCommand = seq;
 		Com_sprintf(cl->lastClientCommandString, sizeof(cl->lastClientCommandString), "%s", s);
