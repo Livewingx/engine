@@ -1146,25 +1146,6 @@ static void SV_ExceptDel_f(void)
 }
 
 /*
-** SV_Strlen -- skips color escape codes
-*/
-static int SV_Strlen( const char *str ) {
-	const char *s = str;
-	int count = 0;
-
-	while ( *s ) {
-		if ( Q_IsColorString( s ) ) {
-			s += 2;
-		} else {
-			count++;
-			s++;
-		}
-	}
-
-	return count;
-}
-
-/*
 ================
 SV_Status_f
 ================
@@ -1195,7 +1176,7 @@ static void SV_Status_f( void ) {
 		Com_Printf ("%5i ", ps->persistant[PERS_SCORE]);
 
 		if (cl->state == CS_CONNECTED)
-			Com_Printf ("CONN ");
+			Com_Printf ("CNCT ");
 		else if (cl->state == CS_ZOMBIE)
 			Com_Printf ("ZMBI ");
 		else
