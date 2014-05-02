@@ -1270,7 +1270,7 @@ static void SV_ConSayBeepOrNoBeep( qboolean beep )
 	}
 	else
 	{
-		SV_SendServerCommand(NULL, "print \"%s\"", text);
+		SV_SendServerCommand(NULL, "print \"%s\n\"", text);
 	}
 }
 
