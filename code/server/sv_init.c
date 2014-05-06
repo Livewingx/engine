@@ -645,15 +645,15 @@ void SV_Init (void)
 	sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_maxclients = Cvar_Get ("sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH);
 
-	sv_minRate = Cvar_Get ("sv_minRate", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_minRate = Cvar_Get ("sv_minRate", "0", CVAR_ARCHIVE );
 	sv_maxRate = Cvar_Get ("sv_maxRate", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_dlRate = Cvar_Get("sv_dlRate", "100", CVAR_ARCHIVE | CVAR_SERVERINFO);
-	sv_minPing = Cvar_Get ("sv_minPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_minPing = Cvar_Get ("sv_minPing", "0", CVAR_ARCHIVE );
 	sv_maxPing = Cvar_Get ("sv_maxPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_floodProtect = Cvar_Get ("sv_floodProtect", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
-	sv_floodProtectMuteTime = Cvar_Get ("sv_floodProtectMuteTime", "1000", CVAR_ARCHIVE | CVAR_SERVERINFO );
-	sv_floodProtectMutePublic = Cvar_Get ("sv_floodProtectMutePublic", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
-	sv_floodProtectAllowedSpams = Cvar_Get ("sv_floodProtectAllowedSpams", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_floodProtectMuteTime = Cvar_Get ("sv_floodProtectMuteTime", "1000", CVAR_ARCHIVE );
+	sv_floodProtectMutePublic = Cvar_Get ("sv_floodProtectMutePublic", "1", CVAR_ARCHIVE );
+	sv_floodProtectAllowedSpams = Cvar_Get ("sv_floodProtectAllowedSpams", "1", CVAR_ARCHIVE );
 
 	// systeminfo
 	Cvar_Get ("sv_cheats", "1", CVAR_SYSTEMINFO | CVAR_ROM );
